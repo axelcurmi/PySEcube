@@ -1,0 +1,3 @@
+ENV_NAME_SHARED_LIB_PATH = "PYSECUBEPATH"
+
+DLL_NAME = "SEcubeWrapper.dll"
