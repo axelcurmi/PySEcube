@@ -1,11 +1,11 @@
 import logging
 
 from pysecube import (Wrapper,
-                      NoSEcubeDeviceConnected)
+                      PySEcubeException)
 
 # Set logger level to DEBUG
 logging.basicConfig()
-logging.getLogger("pysecube").setLevel(logging.DEBUG)
+logging.getLogger("pysecube").setLevel(logging.INFO)
 
 def main() -> int:
     print("PySEcubeWrapper")
@@ -13,8 +13,8 @@ def main() -> int:
     secube_wrapper = None
 
     try:
-        secube_wrapper = Wrapper()
-    except NoSEcubeDeviceConnected as e:
+        secube_wrapper = Wrapper("test")
+    except PySEcubeException as e:
         print(e)
         return 1
     return 0
