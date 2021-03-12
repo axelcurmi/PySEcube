@@ -122,7 +122,6 @@ class Wrapper(object):
     def decrypt(self, key_id: int, algorithm: int, mode: int,
                 data_in: bytes) -> Tuple[int, bytes]:
         data_in_len = len(data_in)
-        print(data_in_len)
 
         data_out_len = c_size_t(0)
         buffer_in = cast(create_string_buffer(data_in, data_in_len),
