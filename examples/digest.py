@@ -24,7 +24,7 @@ def main() -> int:
         # 5. Create L1 library handle
         # 6. If the pin is specified (Either as bytes or a List of integers),
         #    a login is attempted as ACCESS_MODE_USER with the given pin
-        secube_wrapper = Wrapper("test")
+        secube_wrapper = Wrapper(b"test")
 
         # Once the function exits the __del__ function of the wrapper is called,
         #   performing the following:

@@ -43,7 +43,7 @@ class Wrapper(object):
     PYSECUBEPATH = os.environ[ENV_NAME_SHARED_LIB_PATH]
     LOGGER_NAME = "pysecube.wrapper"
 
-    def __init__(self, pin: Union[List[int], str] = None):
+    def __init__(self, pin: Union[List[int], bytes] = None):
         self._logger = getLogger(Wrapper.LOGGER_NAME)
         self._lib = None
         self._l0 = None
@@ -72,16 +72,15 @@ class Wrapper(object):
             self._l0 = None
             self._logger.log(INFO, "L0 destroyed")
 
-    def login(self, pin: Union[List[int], str], access: int,
+    def login(self, pin: Union[List[int], bytes], access: int,
               force: bool = True) -> None:
         if len(pin) > MAX_LENGTH_PIN:
             raise InvalidPinException(f"Pin exceeds length of {MAX_LENGTH_PIN}")
 
         c_pin = None
-        if isinstance(pin, str):
-            c_pin = cast(
-                create_string_buffer(pin.encode("ascii"), MAX_LENGTH_PIN),
-                POINTER(c_uint8))
+        if isinstance(pin, bytes):
+            c_pin = cast(create_string_buffer(pin, MAX_LENGTH_PIN),
+                         POINTER(c_uint8))
         else:
             c_pin = (c_uint8 * MAX_LENGTH_PIN)(*pin)
 
