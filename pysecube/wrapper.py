@@ -21,7 +21,7 @@ from typing import (List,
                     Tuple,
                     Union)
 
-from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
+from pysecube.common import (ALGORITHM_SHA256, ENV_NAME_SHARED_LIB_PATH,
                              DLL_NAME,
                              MAX_LENGTH_PIN,
                              ACCESS_MODE_USER,
@@ -135,6 +135,20 @@ class Wrapper(object):
             raise PySEcubeException("Failed to decrypt")
         return (data_out_len.value, string_at(buffer_out, data_out_len.value))
 
+    def digest(self, data_in: bytes) -> Tuple[int, bytes]:
+        data_in_len = len(data_in)
+
+        data_out_len = c_size_t(0)
+        buffer_in = cast(create_string_buffer(data_in, data_in_len),
+            POINTER(c_int8))
+        buffer_out = cast(create_string_buffer(64), POINTER(c_int8))
+
+        res = self._lib.L1_Digest(self._l1, data_in_len, buffer_in,
+            byref(data_out_len), buffer_out, ALGORITHM_SHA256)
+        if res < 0:
+            raise PySEcubeException("Failed to create digest")
+        return (data_out_len.value, string_at(buffer_out, data_out_len.value))
+
     def crypto_init(self, algorithm: int, mode: int, key_id: int) -> int:
         session_id = c_uint32(0)
         res = self._lib.L1_CryptoInit(self._l1, algorithm, mode, key_id,
@@ -165,7 +179,7 @@ class Wrapper(object):
         self._lib.L1_Destroy.argtypes = [LibraryHandle]
 
         self._lib.L1_Login.argtypes = [LibraryHandle, POINTER(c_uint8),
-                                      c_uint16, c_bool]
+                                       c_uint16, c_bool]
         self._lib.L1_Login.restype = c_int8
 
         self._lib.L1_Logout.argtypes = [LibraryHandle]
@@ -185,6 +199,11 @@ class Wrapper(object):
                                          POINTER(c_int8), c_uint16, c_uint16,
                                          c_uint32]
         self._lib.L1_Decrypt.restype = c_int8
+
+        self._lib.L1_Digest.argtypes = [LibraryHandle, c_size_t,
+                                        POINTER(c_int8), POINTER(c_size_t),
+                                        POINTER(c_int8), c_uint16]
+        self._lib.L1_Digest.restype = c_int8
 
         self._lib.L1_CryptoInit.argtypes = [LibraryHandle, c_uint16, c_uint16,
                          c_uint32, POINTER(c_uint32)]
