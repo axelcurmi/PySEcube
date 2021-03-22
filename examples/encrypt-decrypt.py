@@ -42,8 +42,13 @@ def main() -> int:
 
         # Plaintext to Encrypt as bytes
         plaintext = b"PySEcube"
+        print(f"Plaintext Length: {len(plaintext)}")
+        print(f"Plaintext in HEX: 0x{plaintext.hex()}")
+        # stdout >
+        #   Plaintext Length: 8
+        #   Plaintext in HEX: 0x5079534563756265
 
-        # Encryption of the plaintext passing in the following arguments:
+        # Encryption of the plaintext is performed using following arguments:
         # 1. key_id:    Key ID stored on the SEcube device
         # 2. algorithm: Algorithm to be used for encryption
         # 3. mode:      Algorithm mode to be used for encryption
@@ -77,6 +82,14 @@ def main() -> int:
         #   Plaintext output in HEX 0x50795345637562650000000000000000
         #   Plaintext output as text: PySEcube
         
+        print("Successful encryption-decryption? ", end="")
+        print("\033[92mOK\033[0m" if dec_out == plaintext else \
+              "\033[91mNO\033[0m")
+        # stdout >
+        #   Successful encryption-decryption? YES (There is a small issue with
+        #   this comparison as the output from the digest contains trailing
+        #   zeros; thus, resulting in the two not matching as expected)
+
     except PySEcubeException as e:
         print(e)
         return 1
