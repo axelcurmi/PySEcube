@@ -21,11 +21,13 @@ from typing import (List,
                     Tuple,
                     Union)
 
-from pysecube.common import (ALGORITHM_SHA256, ENV_NAME_SHARED_LIB_PATH,
+from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
                              DLL_NAME,
                              MAX_LENGTH_PIN,
                              ACCESS_MODE_USER,
-                             BLOCK_SIZE_TABLE)
+                             BLOCK_SIZE_TABLE,
+                             DIGEST_SIZE_TABLE,
+                             ALGORITHM_SHA256)
 from pysecube.secube_exception import (NoSEcubeDeviceConnected,
                                        InvalidPinException, PySEcubeException)
 
@@ -141,7 +143,8 @@ class Wrapper(object):
         data_out_len = c_size_t(0)
         buffer_in = cast(create_string_buffer(data_in, data_in_len),
             POINTER(c_int8))
-        buffer_out = cast(create_string_buffer(64), POINTER(c_int8))
+        buffer_out = cast(create_string_buffer(
+            DIGEST_SIZE_TABLE[ALGORITHM_SHA256]), POINTER(c_int8))
 
         res = self._lib.L1_Digest(self._l1, data_in_len, buffer_in,
             byref(data_out_len), buffer_out, ALGORITHM_SHA256)
