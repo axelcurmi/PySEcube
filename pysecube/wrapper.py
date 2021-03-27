@@ -1,14 +1,16 @@
 import math
 import os
+import time
 
 from ctypes import (CDLL,
                     c_byte,
-                    c_bool,
+                    c_bool, c_char,
                     c_size_t,
                     c_int8,
                     c_uint8,
                     c_uint16,
                     c_uint32,
+                    Structure,
                     POINTER,
                     cast,
                     byref,
@@ -23,13 +25,19 @@ from typing import (List,
 
 from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
                              DLL_NAME,
+                             MAX_LENGTH_L1KEY_DATA,
                              MAX_LENGTH_PIN,
+                             MAX_LENGTH_L1KEY_NAME,
                              ACCESS_MODE_USER,
                              BLOCK_SIZE_TABLE,
                              DIGEST_SIZE_TABLE,
-                             ALGORITHM_SHA256)
-from pysecube.secube_exception import (NoSEcubeDeviceConnected,
-                                       InvalidPinException, PySEcubeException)
+                             ALGORITHM_SHA256,
+                             KEY_EDIT_OP_INSERT,
+                             KEY_EDIT_OP_DELETE)
+from pysecube.secube_exception import (PySEcubeException,
+                                       NoSEcubeDeviceConnected,
+                                       InvalidPinException,
+                                       SE3KeyInvalidSizeException)
 
 LibraryHandle = POINTER(c_byte)
 
@@ -38,6 +46,15 @@ def calculate_buffer_size(algorithm: int, data_len: int) -> int:
     block_size = BLOCK_SIZE_TABLE[algorithm]
     return math.ceil(data_len / block_size) * block_size
 
+class SE3Key(Structure):
+    _fields_ = [
+        ("id", c_uint32),
+        ("validity", c_uint32),
+        ("data_size", c_uint16),
+        ("name_size", c_uint16),
+        ("data", POINTER(c_uint8)),
+        ("name", c_char * MAX_LENGTH_L1KEY_NAME)
+    ]
 
 class Wrapper(object):
     PYSECUBEPATH = os.environ[ENV_NAME_SHARED_LIB_PATH]
@@ -96,6 +113,39 @@ class Wrapper(object):
         if res < 0:
             raise PySEcubeException("Failed during logout")
         self._logger.log(INFO, "Logged out")
+
+    def delete_key(self, id: int) -> None:
+        key = SE3Key(id = id)
+        res = self._lib.L1_KeyEdit(self._l1, byref(key), KEY_EDIT_OP_DELETE)
+        if res < 0:
+            raise PySEcubeException("Failed to delete key")
+
+    def add_key(self, id: int, name: bytes, data: bytes, validity: int) -> None:
+        name_size = len(name)
+        data_size = len(data)
+
+        if name_size >= MAX_LENGTH_L1KEY_NAME:
+            raise SE3KeyInvalidSizeException("SE3Key name exceeds {} bytes",
+                                             MAX_LENGTH_L1KEY_NAME - 1)
+        if data_size > MAX_LENGTH_L1KEY_DATA:
+            raise SE3KeyInvalidSizeException("SE3Key data exceeds {} bytes",
+                                             MAX_LENGTH_L1KEY_DATA)
+
+        data_buffer = cast(create_string_buffer(data, data_size),
+                           POINTER(c_uint8))
+
+        key = SE3Key(
+            id = id,
+            validity = int(time.time()) + validity,
+            data_size = data_size,
+            name_size = name_size + 1,
+            data = data_buffer,
+            name = name
+        )
+
+        res = self._lib.L1_KeyEdit(self._l1, byref(key), KEY_EDIT_OP_INSERT)
+        if res < 0:
+            raise PySEcubeException("Failed to add key")
 
     def crypto_set_time_now(self) -> None:
         res = self._lib.L1_CryptoSetTimeNow(self._l1)
@@ -186,6 +236,10 @@ class Wrapper(object):
 
         self._lib.L1_Logout.argtypes = [LibraryHandle]
         self._lib.L1_Logout.restype = c_int8
+
+        self._lib.L1_KeyEdit.argtypes = [LibraryHandle, POINTER(SE3Key),
+                                         c_uint16]
+        self._lib.L1_KeyEdit.restype = c_int8
 
         self._lib.L1_CryptoSetTimeNow.argtypes = [LibraryHandle]
         self._lib.L1_CryptoSetTimeNow.restype = c_int8

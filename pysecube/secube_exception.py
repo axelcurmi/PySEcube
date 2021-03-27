@@ -15,3 +15,9 @@ class InvalidPinException(PySEcubeException):
     Pin provided for L1 login is invalid.
     """
     pass
+
+class SE3KeyInvalidSizeException(PySEcubeException):
+    """
+    Invalid size for name or data field in SE3Key structure
+    """
+    pass
