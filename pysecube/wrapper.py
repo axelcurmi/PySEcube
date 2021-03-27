@@ -114,11 +114,15 @@ class Wrapper(object):
             raise PySEcubeException("Failed during logout")
         self._logger.log(INFO, "Logged out")
 
+    def key_exists(self, id: int) -> bool:
+        return self._lib.L1_FindKey(self._l1, id) == 1
+
     def delete_key(self, id: int) -> None:
         key = SE3Key(id = id)
         res = self._lib.L1_KeyEdit(self._l1, byref(key), KEY_EDIT_OP_DELETE)
         if res < 0:
             raise PySEcubeException("Failed to delete key")
+        self._logger.log(INFO, f"Key with ID:{id} deleted successfully")
 
     def add_key(self, id: int, name: bytes, data: bytes, validity: int) -> None:
         name_size = len(name)
@@ -146,6 +150,7 @@ class Wrapper(object):
         res = self._lib.L1_KeyEdit(self._l1, byref(key), KEY_EDIT_OP_INSERT)
         if res < 0:
             raise PySEcubeException("Failed to add key")
+        self._logger.log(INFO, f"Key with ID:{id} added successfully")
 
     def crypto_set_time_now(self) -> None:
         res = self._lib.L1_CryptoSetTimeNow(self._l1)
@@ -236,6 +241,9 @@ class Wrapper(object):
 
         self._lib.L1_Logout.argtypes = [LibraryHandle]
         self._lib.L1_Logout.restype = c_int8
+
+        self._lib.L1_FindKey.argtypes = [LibraryHandle, c_uint32]
+        self._lib.L1_FindKey.restype = c_int8
 
         self._lib.L1_KeyEdit.argtypes = [LibraryHandle, POINTER(SE3Key),
                                          c_uint16]

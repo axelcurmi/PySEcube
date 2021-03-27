@@ -1,16 +1,25 @@
+import argparse
 import logging
 
 from pysecube import (Wrapper,
-                      PySEcubeException,
-                      ALGORITHM_AES,
-                      FEEDBACK_CTR)
+                      PySEcubeException)
 
 # Set logger to INFO, this can be ommitted to produce no logs
 logging.basicConfig()
 logging.getLogger("pysecube").setLevel(logging.INFO)
 
+DIGEST_KEY_ID = 0
+VALID_FOR_SECS = 3600 * 24 * 365 # 1 Year
+
+# This script will add/remove a zero key for SHA256. This is due to a bug in the
+# SEcube source code, as every operation (even hashing)
+# requires a valid key id. Hence, we will be adding a key with all zero bytes
+# for the purpose of hashing.
 def main() -> int:
-    print("PySEcube Sample")
+    argparser = argparse.ArgumentParser(description=f"PySEcube {__file__}")
+    argparser.add_argument("--rollback", "-r", action="store_true",
+                           help="Rollback the addition of zero key.")
+    args = argparser.parse_args()
 
     secube_wrapper = None
 
@@ -27,11 +36,20 @@ def main() -> int:
         #    a login is attempted as ACCESS_MODE_USER with the given pin
         secube_wrapper = Wrapper(b"test")
 
-        secube_wrapper.delete_key(1)
+        if not args.rollback and secube_wrapper.key_exists(DIGEST_KEY_ID):
+            print(f"Key with ID:{DIGEST_KEY_ID} already exists")
+            return 1
+        elif args.rollback and not secube_wrapper.key_exists(DIGEST_KEY_ID):
+            print(f"Key with ID:{DIGEST_KEY_ID} does not exist")
+            return 1
 
-        # TODO: Add note on why we are adding a key for SHA256, eventhough it is
-        #       a hash function; thus, does not use a key.
-        secube_wrapper.add_key(1, b"SHA256", b"\00" * 32, 3600)
+        if not args.rollback:
+            secube_wrapper.add_key(DIGEST_KEY_ID, b"DigestKey", b"\00" * 32,
+                                   VALID_FOR_SECS)
+            print(f"Key with ID:{DIGEST_KEY_ID} added for {VALID_FOR_SECS}s")
+        else:
+            secube_wrapper.delete_key(DIGEST_KEY_ID)    
+            print(f"Key with ID:{DIGEST_KEY_ID} removed") 
 
     except PySEcubeException as e:
         print(e)
