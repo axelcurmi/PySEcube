@@ -40,9 +40,9 @@ def main() -> int:
         plaintext = b"PySEcube"
 
         # Digest of some bytes (in this case the plaintext bytes):
-        dig_out_len, dig_out = secube_wrapper.digest(plaintext)
+        dig_out = secube_wrapper.SHA256_digest(plaintext)
 
-        print(f"Digest output length: {dig_out_len}")
+        print(f"Digest output length: {len(dig_out)}")
         print(f"Digest out in HEX 0x{dig_out.hex()}")
         # stdout >
         #   Digest output length: 32

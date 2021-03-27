@@ -1,4 +1,5 @@
 import logging
+from pysecube.common import MODE_ENCRYPT
 
 from pysecube import (Wrapper,
                       PySEcubeException,
@@ -9,8 +10,8 @@ from pysecube import (Wrapper,
 logging.basicConfig()
 logging.getLogger("pysecube").setLevel(logging.INFO)
 
-# Use key with ID 2000 stored in the SEcube device
-AES_KEY_ID = 2000
+# Use key with ID 10 stored in the SEcube device
+AES_KEY_ID = 10
 
 def main() -> int:
     print("PySEcube Sample")
@@ -53,13 +54,13 @@ def main() -> int:
         # 2. algorithm: Algorithm to be used for encryption
         # 3. mode:      Algorithm mode to be used for encryption
         # 4. data_in:   The plaintext to encrypt
-        enc_out_len, enc_out = secube_wrapper.encrypt(AES_KEY_ID,
-                                                      ALGORITHM_AES,
-                                                      FEEDBACK_CTR,
-                                                      plaintext)
+        enc_out = secube_wrapper.encrypt(ALGORITHM_AES,
+                                         MODE_ENCRYPT | FEEDBACK_CTR,
+                                         AES_KEY_ID, plaintext)
 
-        print(f"Encrypted output length: {enc_out_len}")
+        print(f"Encrypted output length: {len(enc_out)}")
         print(f"Ciphertext output in HEX: 0x{enc_out.hex()}")
+        exit()
         # stdout >
         #   Encrypted output length: 16
         #   Ciphertext output in HEX: 0x2c620845f53ef014a61d3361ac89bcb5

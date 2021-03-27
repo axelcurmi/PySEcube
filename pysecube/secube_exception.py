@@ -16,6 +16,12 @@ class InvalidPinException(PySEcubeException):
     """
     pass
 
+class CryptoInitialisationException(PySEcubeException):
+    """
+    Failed during crypto initialisation
+    """
+    pass
+
 class SE3KeyInvalidSizeException(PySEcubeException):
     """
     Invalid size for name or data field in SE3Key structure
