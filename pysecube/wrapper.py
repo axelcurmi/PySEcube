@@ -219,7 +219,6 @@ class Wrapper(object):
                 iv: bytes = None) -> bytes:
         data_in_len = len(data_in)
         buffer_len = calculate_buffer_size(algorithm, data_in_len)
-        print(buffer_len)
 
         data_in_buffer = cast(create_string_buffer(data_in, buffer_len),
                               POINTER(c_uint8))
