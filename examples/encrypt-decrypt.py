@@ -76,9 +76,9 @@ def main() -> int:
         # 2. mode:      Algorithm mode to be used for encryption
         # 3. key_id:    Key ID stored on the SEcube device
         # 4. data_in:   The plaintext to encrypt
-        secube_enc_out = secube_wrapper.encrypt(ALGORITHM_AES, FEEDBACK_CTR,
-                                                AES_KEY_ID, plaintext,
-                                                CTR_NONCE)
+        secube_enc_out = secube_wrapper.crypt(ALGORITHM_AES, FEEDBACK_CTR,
+                                              AES_KEY_ID, plaintext,
+                                              CTR_NONCE)
 
         print(f"SEcube ENC output length: {len(secube_enc_out)}")
         print(f"SEcube ENC output HEX: 0x{secube_enc_out.hex()}")
@@ -93,9 +93,9 @@ def main() -> int:
 
         # 1. Encrypt w. SEcube and decrypt w. SEcube
         print("> ENC. SEcube - DEC. SEcube <")
-        secube_secube = secube_wrapper.encrypt(ALGORITHM_AES, FEEDBACK_CTR,
-                                               AES_KEY_ID, secube_enc_out,
-                                               CTR_NONCE)
+        secube_secube = secube_wrapper.crypt(ALGORITHM_AES, FEEDBACK_CTR,
+                                             AES_KEY_ID, secube_enc_out,
+                                             CTR_NONCE)
 
         print(f"Output length: {len(secube_secube)}")
         print(f"Output HEX 0x{secube_secube.hex()}")
@@ -104,9 +104,9 @@ def main() -> int:
 
         # 2. Encrypt w. OpenSSL and decrypt w. SEcube
         print("> ENC. OpenSSL - DEC. SEcube <")
-        openssl_secube = secube_wrapper.encrypt(ALGORITHM_AES, FEEDBACK_CTR,
-                                               AES_KEY_ID, openssl_enc_out,
-                                               CTR_NONCE)
+        openssl_secube = secube_wrapper.crypt(ALGORITHM_AES, FEEDBACK_CTR,
+                                              AES_KEY_ID, openssl_enc_out,
+                                              CTR_NONCE)
         print(f"Output length: {len(openssl_secube)}")
         print(f"Output HEX 0x{openssl_secube.hex()}")
         print(f"Output text: {openssl_secube.decode()}")

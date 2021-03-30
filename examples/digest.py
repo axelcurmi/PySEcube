@@ -40,7 +40,7 @@ def main() -> int:
         plaintext = b"PySEcube"
 
         # Digest of some bytes (in this case the plaintext bytes):
-        dig_out = secube_wrapper.SHA256_digest(plaintext)
+        dig_out = secube_wrapper.digest_sha256(plaintext)
 
         print(f"Digest output length: {len(dig_out)}")
         print(f"Digest out in HEX 0x{dig_out.hex()}")
@@ -62,7 +62,7 @@ def main() -> int:
         #   Hashlib digest in HEX 0x1271397c7edec16bdb5600913cac23898fb48da6100471008f23b7e8e2deb817
 
         print("Successful digest? ", end="")
-        print("\033[92mOK\033[0m" if hlib_dig_out == dig_out else \
+        print("\033[92mYES\033[0m" if hlib_dig_out == dig_out else \
               "\033[91mNO\033[0m")
         # stdout >
         #   Successful digest? YES
