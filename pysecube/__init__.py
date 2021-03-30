@@ -1,4 +1,5 @@
 from pysecube.wrapper import Wrapper
+from pysecube.crypter import Crypter
 
 from pysecube.secube_exception import (PySEcubeException,
                                        NoSEcubeDeviceConnected,
@@ -19,6 +20,7 @@ from pysecube.common import (ALGORITHM_AES,
 __author__ = "Axel Curmi <axel.curmi.20@um.edu.mt>"
 __all__ = [
     "Wrapper",
+    "Crypter",
     "PySEcubeException",
     "NoSEcubeDeviceConnected",
     "InvalidPinException",

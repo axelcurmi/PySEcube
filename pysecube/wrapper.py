@@ -5,7 +5,6 @@ import time
 from ctypes import (CDLL,
                     c_byte,
                     c_bool, c_char,
-                    c_size_t,
                     c_int8,
                     c_uint8,
                     c_uint16,
@@ -20,7 +19,6 @@ from logging import (getLogger,
                      DEBUG,
                      INFO)
 from typing import (List,
-                    Tuple,
                     Union)
 
 from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
