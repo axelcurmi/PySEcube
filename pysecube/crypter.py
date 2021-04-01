@@ -39,6 +39,9 @@ class Crypter(object):
             "encryption " if self.__flags & MODE_ENCRYPT > 0 else "decryption")
 
     def update(self, data_in: bytes) -> bytes:
+        if data_in == b"" or data_in is None:
+            return data_in
+
         max_out_len = len(data_in)
 
         if self.__flags & MODE_ENCRYPT:
