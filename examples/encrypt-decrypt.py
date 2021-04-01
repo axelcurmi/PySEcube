@@ -5,7 +5,6 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import algorithms, Cipher, modes
 
 from pysecube import (Wrapper,
-                      Crypter,
                       PySEcubeException,
                       ALGORITHM_AES,
                       FEEDBACK_CTR,
@@ -14,7 +13,7 @@ from pysecube import (Wrapper,
 
 # Set logger to INFO, this can be ommitted to produce no logs
 logging.basicConfig()
-logging.getLogger("pysecube").setLevel(logging.INFO)
+logging.getLogger("pysecube").setLevel(logging.DEBUG)
 
 # Use key with ID 10 stored in the SEcube device
 AES_KEY_ID = 10
@@ -25,17 +24,35 @@ AES_KEY_BYTES = b"\x01\x02\x03\x04\x05\x06\x07\x08" + \
 CTR_NONCE     = b"\xA1\xA2\xA3\xA4\xA5\xA6\xA7\xA8" + \
                 b"\xA1\xA2\xA3\xA4\xA5\xA6\xA7\xA8" # 16 byte CTR nonce
 
+
+def test_encrypt_decrypt(plaintext, encrypter, decrypter):
+    print(f"Encrypter: {type(encrypter)}")
+    print(f"Decrypter: {type(decrypter)}")
+
+    enc_out = encrypter.update(plaintext)
+    print(f"[1] SEcube ENC output length: {len(enc_out)}")
+    print(f"[1] SEcube ENC output HEX: 0x{enc_out.hex()}")
+
+    dec_out = decrypter.update(enc_out)
+    print(f"[1] Output length: {len(dec_out)}")
+    print(f"[1] Output HEX 0x{dec_out.hex()}")
+    print(f"[1] Output text: {dec_out.decode()}")
+    assert(dec_out == plaintext)
+
+    enc_out = encrypter.update(plaintext)
+    print(f"[2] SEcube ENC output length: {len(enc_out)}")
+    print(f"[2] SEcube ENC output HEX: 0x{enc_out.hex()}")
+
+    dec_out = decrypter.update(enc_out)
+    print(f"[2] Output length: {len(dec_out)}")
+    print(f"[2] Output HEX 0x{dec_out.hex()}")
+    print(f"[2] Output text: {dec_out.decode()}")
+    assert(dec_out == plaintext)
+
 def main() -> int:
     print("PySEcube Sample")
 
     secube_wrapper = None
-
-    # Create OpenSSL encryptor / decryptor
-    cipher = Cipher(algorithm = algorithms.AES(AES_KEY_BYTES),
-                    mode = modes.CTR(CTR_NONCE),
-                    backend = default_backend()) # OpenSSL backend
-    openssl_enc_engine = cipher.encryptor()
-    openssl_dec_engine = cipher.decryptor()
 
     try:
         # Create new wrapper instance, this will do a couple of things:
@@ -49,18 +66,6 @@ def main() -> int:
         # 6. If the pin is specified (Either as bytes or a List of integers),
         #    a login is attempted as ACCESS_MODE_USER with the given pin
         secube_wrapper = Wrapper(b"test")
-        
-        # Create PySEcube encryptor / decryptor
-        # It is important to note that since we are using the CTR mode, only an
-        # encryptor is required, as decryption can be achieved by re-encrypting the
-        # ciphertext.
-        pysecube_enc_engine = Crypter(secube_wrapper, ALGORITHM_AES,
-                                    MODE_ENCRYPT | FEEDBACK_CTR,
-                                    AES_KEY_ID, iv=CTR_NONCE)
-        pysecube_dec_engine = Crypter(secube_wrapper, ALGORITHM_AES,
-                                    MODE_DECRYPT | FEEDBACK_CTR,
-                                    AES_KEY_ID, iv=CTR_NONCE)
-
 
         # Delete key if already exists
         if secube_wrapper.key_exists(AES_KEY_ID):
@@ -81,55 +86,47 @@ def main() -> int:
         secube_wrapper.crypto_set_time_now()
 
         # Plaintext to Encrypt as bytes
-        plaintext = b"AAAABBBBCCCCDDDD"
+        plaintext = b"AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH"
         print(f"Plaintext length: {len(plaintext)}")
         print(f"Plaintext HEX: 0x{plaintext.hex()}")
         print(f"Plaintext text: {plaintext.decode()}")
 
-        # Encryption of the plaintext is performed using following arguments:
-        # 1. algorithm: Algorithm to be used for encryption
-        # 2. mode:      Algorithm mode to be used for encryption
-        # 3. key_id:    Key ID stored on the SEcube device
-        # 4. data_in:   The plaintext to encrypt
-        secube_enc_out = pysecube_enc_engine.update(plaintext)
+        # openssl_enc_out = openssl_enc_engine.update(plaintext)
+        # print(f"OpenSSL ENC output length: {len(openssl_enc_out)}")
+        # print(f"OpenSSL ENC output HEX: 0x{openssl_enc_out.hex()}")
 
-        print(f"SEcube ENC output length: {len(secube_enc_out)}")
-        print(f"SEcube ENC output HEX: 0x{secube_enc_out.hex()}")
-
-        openssl_enc_out = openssl_enc_engine.update(plaintext)
-        print(f"OpenSSL ENC output length: {len(openssl_enc_out)}")
-        print(f"OpenSSL ENC output HEX: 0x{openssl_enc_out.hex()}")
-
-        # Decryption (since we are using CTR, we can decrypt with encrypt func)
-        # Preferred cipher in Paramiko is AES-128 with CTR; hence why we're
-        #   using CTR in this test
+        # Create OpenSSL cipher engine
+        openssl_engine = Cipher(algorithm = algorithms.AES(AES_KEY_BYTES),
+                                mode = modes.CTR(CTR_NONCE),
+                                backend = default_backend()) # OpenSSL backend
 
         # 1. Encrypt w. SEcube and decrypt w. SEcube
         print("> ENC. SEcube - DEC. SEcube <")
-        secube_secube = pysecube_dec_engine.update(secube_enc_out)
 
-        print(f"Output length: {len(secube_secube)}")
-        print(f"Output HEX 0x{secube_secube.hex()}")
-        print(f"Output text: {secube_secube.decode()}")
-        assert(secube_secube == plaintext)
+        # Create PySEcube encryptor and decryptor
+        encrypter = secube_wrapper.get_crypter(
+            ALGORITHM_AES, MODE_ENCRYPT | FEEDBACK_CTR, AES_KEY_ID, iv=CTR_NONCE
+        )
+        decrypter = secube_wrapper.get_crypter(
+            ALGORITHM_AES, MODE_DECRYPT | FEEDBACK_CTR, AES_KEY_ID, iv=CTR_NONCE
+        )
+        test_encrypt_decrypt(plaintext, encrypter, decrypter)
 
         # 2. Encrypt w. OpenSSL and decrypt w. SEcube
         print("> ENC. OpenSSL - DEC. SEcube <")
-        openssl_secube = pysecube_dec_engine.update(openssl_enc_out)
-
-        print(f"Output length: {len(openssl_secube)}")
-        print(f"Output HEX 0x{openssl_secube.hex()}")
-        print(f"Output text: {openssl_secube.decode()}")
-        assert(openssl_secube == plaintext)
-
+        encrypter = openssl_engine.encryptor()
+        decrypter = secube_wrapper.get_crypter(
+            ALGORITHM_AES, MODE_DECRYPT | FEEDBACK_CTR, AES_KEY_ID, iv=CTR_NONCE
+        )
+        test_encrypt_decrypt(plaintext, encrypter, decrypter)
+        
         # 3. Encrypt w. SEcube and decrypt w. OpenSSL
         print("> ENC. SEcube - DEC. OpenSSL <")
-        secube_openssl = openssl_dec_engine.update(secube_enc_out)
-
-        print(f"Output length: {len(secube_openssl)}")
-        print(f"Output HEX 0x{secube_openssl.hex()}")
-        print(f"Output text: {secube_openssl.decode()}")
-        assert(secube_openssl == plaintext)
+        encrypter = secube_wrapper.get_crypter(
+            ALGORITHM_AES, MODE_ENCRYPT | FEEDBACK_CTR, AES_KEY_ID, iv=CTR_NONCE
+        )
+        decrypter = openssl_engine.decryptor()
+        test_encrypt_decrypt(plaintext, encrypter, decrypter)
 
         # Remove the test key
         secube_wrapper.delete_key(AES_KEY_ID)
