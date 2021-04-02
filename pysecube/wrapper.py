@@ -35,6 +35,7 @@ from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
                              BLOCK_SIZE_TABLE,
                              DIGEST_SIZE_TABLE,
                              ALGORITHM_SHA256,
+                             ALGORITHM_HMACSHA256,
                              KEY_EDIT_OP_INSERT,
                              KEY_EDIT_OP_DELETE)
 
@@ -198,7 +199,7 @@ class Wrapper(object):
         return None if out_len is None else string_at(out_buffer,
                                                       out_len.value)
 
-    def digest_sha256(self, data_in: bytes) -> bytes:
+    def sha256(self, data_in: bytes) -> bytes:
         data_in_len = len(data_in)
         data_in_buffer = cast(create_string_buffer(data_in, data_in_len),
                               POINTER(c_uint8))
@@ -211,6 +212,22 @@ class Wrapper(object):
         if self._lib.DigestSHA256(self._l1, data_in_len, data_in_buffer,
                                   byref(data_out_len), data_out_buffer) < 0:
             raise PySEcubeException("Failed to create SHA256 digest")
+        return string_at(data_out_buffer, data_out_len.value)
+
+    def compute_hmac(self, key_id: int, data_in: bytes) -> bytes:
+        data_in_len = len(data_in)
+        data_in_buffer = cast(create_string_buffer(data_in, data_in_len),
+                              POINTER(c_uint8))
+
+        data_out_len = c_uint16()
+        data_out_buffer = cast(
+            create_string_buffer(DIGEST_SIZE_TABLE[ALGORITHM_HMACSHA256]),
+            POINTER(c_uint8))
+
+        if self._lib.DigestHMACSHA256(self._l1, key_id, data_in_len,
+                                  data_in_buffer, byref(data_out_len),
+                                  data_out_buffer) < 0:
+            raise PySEcubeException("Failed to create SHA256 HMAC")
         return string_at(data_out_buffer, data_out_len.value)
 
     # internal
@@ -262,6 +279,12 @@ class Wrapper(object):
                                            POINTER(c_uint8), POINTER(c_uint16),
                                            POINTER(c_uint8)]
         self._lib.DigestSHA256.restype = c_int8
+
+        self._lib.DigestHMACSHA256.argtypes = [LibraryHandle, c_uint32,
+                                               c_uint16, POINTER(c_uint8),
+                                               POINTER(c_uint16),
+                                               POINTER(c_uint8)]
+        self._lib.DigestHMACSHA256.restype = c_int8
 
     def _create_libraries(self) -> None:
         self._l0 = self._lib.L0_create()

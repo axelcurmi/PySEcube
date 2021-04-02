@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="PySEcube",
-    version="1.0.3",
+    version="1.0.4",
     description="SEcube L0 and L1 host libraries python wrapper",
     author="Axel Curmi",
     author_email="axel.curmi.20@um.edu.mt",
