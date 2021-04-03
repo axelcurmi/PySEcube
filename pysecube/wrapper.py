@@ -2,19 +2,8 @@ import math
 import os
 import time
 
-from ctypes import (CDLL,
-                    c_byte,
-                    c_bool, c_char,
-                    c_int8,
-                    c_uint8,
-                    c_uint16,
-                    c_uint32,
-                    Structure,
-                    POINTER,
-                    cast,
-                    byref,
-                    create_string_buffer,
-                    string_at)
+from cffi import FFI
+
 from logging import (getLogger,
                      DEBUG,
                      INFO)
@@ -39,17 +28,47 @@ from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
                              KEY_EDIT_OP_INSERT,
                              KEY_EDIT_OP_DELETE)
 
-LibraryHandle = POINTER(c_byte)
+# TODO: Maybe move to a seperate python file (like the cryptography module)
+CDEF = """\
+// Type definitions
+typedef ... L0_handler_t;
+typedef ... L1_handle_t;
 
-class SE3Key(Structure):
-    _fields_ = [
-        ("id", c_uint32),
-        ("validity", c_uint32),
-        ("data_size", c_uint16),
-        ("name_size", c_uint16),
-        ("data", POINTER(c_uint8)),
-        ("name", c_char * MAX_LENGTH_L1KEY_NAME)
-    ]
+typedef struct se3Key_ {
+	uint32_t id;
+	uint32_t validity;
+	uint16_t dataSize;
+	uint16_t nameSize;
+	uint8_t* data;
+	uint8_t name[32];
+} se3Key;
+
+// L0
+L0_handler_t *L0_Create();
+void L0_Destroy(L0_handler_t *l0);
+
+uint8_t L0_GetNumberDevices(L0_handler_t *l0);
+
+// L1
+L1_handle_t *L1_Create();
+void L1_Destroy(L1_handle_t *l1);
+
+int8_t L1_Login(L1_handle_t *l1, const uint8_t *pin, uint16_t access,
+    bool force);
+int8_t L1_Logout(L1_handle_t *l1);
+
+int8_t L1_FindKey(L1_handle_t *l1, uint32_t keyID);
+int8_t L1_KeyEdit(L1_handle_t *l1, se3Key* key, uint16_t op);
+
+int8_t L1_CryptoSetTimeNow(L1_handle_t *l1);
+
+int8_t DigestSHA256(L1_handle_t *l1, uint16_t dataInLen, uint8_t *dataIn,
+    uint16_t *dataOutLen, uint8_t *dataOut);
+int8_t DigestHMACSHA256(L1_handle_t *l1, uint32_t keyId,
+    uint16_t dataInLen, uint8_t *dataIn, uint16_t *dataOutLen,
+    uint8_t *dataOut);
+"""
+
 
 class Wrapper(object):
     PYSECUBEPATH = os.environ[ENV_NAME_SHARED_LIB_PATH]
@@ -57,14 +76,15 @@ class Wrapper(object):
 
     def __init__(self, pin: Union[List[int], bytes] = None):
         self._logger = getLogger(Wrapper.LOGGER_NAME)
+        self._ffi = None
         self._lib = None
+
         self._l0 = None
         self._l1 = None
 
         self.logged_in = False
 
         self._load_library()
-        self._setup_boilerplate()
         self._create_libraries()
         
         if pin is not None:
@@ -80,7 +100,7 @@ class Wrapper(object):
             self._logger.log(DEBUG, "L1 destroyed")
 
         if self._l0 is not None:
-            self._lib.L0_destroy(self._l0)
+            self._lib.L0_Destroy(self._l0)
             self._l0 = None
             self._logger.log(DEBUG, "L0 destroyed")
 
@@ -91,10 +111,9 @@ class Wrapper(object):
 
         c_pin = None
         if isinstance(pin, bytes):
-            c_pin = cast(create_string_buffer(pin, MAX_LENGTH_PIN),
-                         POINTER(c_uint8))
+            c_pin = self._ffi.new("char[32]", pin)
         else:
-            c_pin = (c_uint8 * MAX_LENGTH_PIN)(*pin)
+            raise Exception("NOT IMPLEMENTED YET") # TODO
 
         res = self._lib.L1_Login(self._l1, c_pin, access, force)
         if res < 0:
@@ -113,8 +132,8 @@ class Wrapper(object):
         return self._lib.L1_FindKey(self._l1, id) == 1
 
     def delete_key(self, id: int) -> None:
-        key = SE3Key(id = id)
-        res = self._lib.L1_KeyEdit(self._l1, byref(key), KEY_EDIT_OP_DELETE)
+        key = self._ffi.new("se3Key *", { "id": id })
+        res = self._lib.L1_KeyEdit(self._l1, key, KEY_EDIT_OP_DELETE)
         if res < 0:
             raise PySEcubeException("Failed to delete key")
         self._logger.log(DEBUG, "Key with ID:%d deleted successfully", id)
@@ -130,19 +149,16 @@ class Wrapper(object):
             raise SE3KeyInvalidSizeException("SE3Key data exceeds {} bytes",
                                              MAX_LENGTH_L1KEY_DATA)
 
-        data_buffer = cast(create_string_buffer(data, data_size),
-                           POINTER(c_uint8))
+        key = self._ffi.new("se3Key *", {
+            "id": id,
+            "validity": int(time.time()) + 3600,
+            "dataSize": data_size,
+            "nameSize": name_size,
+            "data": self._ffi.from_buffer(data),
+            "name": name,
+        })
 
-        key = SE3Key(
-            id = id,
-            validity = int(time.time()) + validity,
-            data_size = data_size,
-            name_size = name_size + 1,
-            data = data_buffer,
-            name = name
-        )
-
-        res = self._lib.L1_KeyEdit(self._l1, byref(key), KEY_EDIT_OP_INSERT)
+        res = self._lib.L1_KeyEdit(self._l1, key, KEY_EDIT_OP_INSERT)
         if res < 0:
             raise PySEcubeException("Failed to add key")
         self._logger.log(DEBUG, "Key with ID:%d added successfully", id)
@@ -157,140 +173,89 @@ class Wrapper(object):
                     iv: bytes = None) -> Crypter:
         return Crypter(self, algorithm, flags, key_id, iv)
 
-    def crypto_init(self, algorithm: int, flags: int, key_id: int) -> int:
-        session_id = c_uint32()
-        res = self._lib.CryptoInit(self._l1, algorithm, flags, key_id,
-            byref(session_id))
-        if res < 0:
-            raise PySEcubeException("Failed to initialise crypto session")
-        return session_id.value
+    # def crypto_init(self, algorithm: int, flags: int, key_id: int) -> int:
+    #     session_id = c_uint32()
+    #     res = self._lib.CryptoInit(self._l1, algorithm, flags, key_id,
+    #         byref(session_id))
+    #     if res < 0:
+    #         raise PySEcubeException("Failed to initialise crypto session")
+    #     return session_id.value
 
-    def crypto_update(self, session_id: int, flags: int, data1: bytes = None,
-                      data2: bytes = None, max_out_len: int = 0) -> bytes:
-        # Data 1
-        data1_len = 0
-        data1_buffer = None
-        if data1 is not None:
-            data1_len = len(data1)
-            data1_buffer = cast(create_string_buffer(data1, data1_len),
-                                POINTER(c_uint8))
+    # def crypto_update(self, session_id: int, flags: int, data1: bytes = None,
+    #                   data2: bytes = None, max_out_len: int = 0) -> bytes:
+    #     # Data 1
+    #     data1_len = 0
+    #     data1_buffer = None
+    #     if data1 is not None:
+    #         data1_len = len(data1)
+    #         data1_buffer = cast(create_string_buffer(data1, data1_len),
+    #                             POINTER(c_uint8))
 
-        # Data 2
-        data2_len = 0
-        data2_buffer = None
-        if data2 is not None:
-            data2_len = len(data2)
-            data2_buffer = cast(create_string_buffer(data2, data2_len),
-                                POINTER(c_uint8))
+    #     # Data 2
+    #     data2_len = 0
+    #     data2_buffer = None
+    #     if data2 is not None:
+    #         data2_len = len(data2)
+    #         data2_buffer = cast(create_string_buffer(data2, data2_len),
+    #                             POINTER(c_uint8))
 
-        out_len = None
-        out_buffer = None
-        if max_out_len > 0:
-            out_len = c_uint16()
-            out_buffer = cast(create_string_buffer(max_out_len),
-                              POINTER(c_uint8))
+    #     out_len = None
+    #     out_buffer = None
+    #     if max_out_len > 0:
+    #         out_len = c_uint16()
+    #         out_buffer = cast(create_string_buffer(max_out_len),
+    #                           POINTER(c_uint8))
 
-        res = self._lib.CryptoUpdate(self._l1, session_id, flags, data1_len,
-                                     data1_buffer, data2_len, data2_buffer,
-                                     None if out_len is None else byref(out_len),
-                                     out_buffer)
-        if res < 0:
-            raise PySEcubeException("Failed to perform crypto update")
-        return None if out_len is None else string_at(out_buffer,
-                                                      out_len.value)
+    #     res = self._lib.CryptoUpdate(self._l1, session_id, flags, data1_len,
+    #                                  data1_buffer, data2_len, data2_buffer,
+    #                                  None if out_len is None else byref(out_len),
+    #                                  out_buffer)
+    #     if res < 0:
+    #         raise PySEcubeException("Failed to perform crypto update")
+    #     return None if out_len is None else string_at(out_buffer,
+    #                                                   out_len.value)
 
     def sha256(self, data_in: bytes) -> bytes:
-        data_in_len = len(data_in)
-        data_in_buffer = cast(create_string_buffer(data_in, data_in_len),
-                              POINTER(c_uint8))
+        data_in_buffer = self._ffi.from_buffer(data_in)
 
-        data_out_len = c_uint16()
-        data_out_buffer = cast(
-            create_string_buffer(DIGEST_SIZE_TABLE[ALGORITHM_SHA256]),
-            POINTER(c_uint8))
+        data_out_len = self._ffi.new("uint16_t *")
+        data_out_buffer = self._ffi.new(
+            "uint8_t[]", DIGEST_SIZE_TABLE[ALGORITHM_SHA256]
+        )
 
-        if self._lib.DigestSHA256(self._l1, data_in_len, data_in_buffer,
-                                  byref(data_out_len), data_out_buffer) < 0:
+        if self._lib.DigestSHA256(self._l1, len(data_in), data_in_buffer,
+                                  data_out_len, data_out_buffer) < 0:
             raise PySEcubeException("Failed to create SHA256 digest")
-        return string_at(data_out_buffer, data_out_len.value)
+        return self._ffi.buffer(data_out_buffer, data_out_len[0])[:]
 
     def compute_hmac(self, key_id: int, data_in: bytes) -> bytes:
-        data_in_len = len(data_in)
-        data_in_buffer = cast(create_string_buffer(data_in, data_in_len),
-                              POINTER(c_uint8))
+        data_in_buffer = self._ffi.from_buffer(data_in)
 
-        data_out_len = c_uint16()
-        data_out_buffer = cast(
-            create_string_buffer(DIGEST_SIZE_TABLE[ALGORITHM_HMACSHA256]),
-            POINTER(c_uint8))
+        data_out_len = self._ffi.new("uint16_t *")
+        data_out_buffer = self._ffi.new(
+            "uint8_t[]", DIGEST_SIZE_TABLE[ALGORITHM_HMACSHA256]
+        )
 
-        if self._lib.DigestHMACSHA256(self._l1, key_id, data_in_len,
-                                  data_in_buffer, byref(data_out_len),
+        if self._lib.DigestHMACSHA256(self._l1, key_id, len(data_in),
+                                  data_in_buffer, data_out_len,
                                   data_out_buffer) < 0:
             raise PySEcubeException("Failed to create SHA256 HMAC")
-        return string_at(data_out_buffer, data_out_len.value)
+        return self._ffi.buffer(data_out_buffer, data_out_len[0])[:]
 
     # internal
     def _load_library(self) -> None:
-        dll_path = os.path.join(Wrapper.PYSECUBEPATH, DLL_NAME)
-        self._logger.log(DEBUG, "Loading library from %s", dll_path)
-        self._lib = CDLL(dll_path, winmode=0x00000008)
+        self._ffi = FFI()
+        self._ffi.cdef(CDEF)
 
-    def _setup_boilerplate(self) -> None:
-        # L0
-        self._lib.L0_create.restype = LibraryHandle
-        self._lib.L0_destroy.argtypes = [LibraryHandle]
-
-        self._lib.L0_getNumberDevices.argtypes = [LibraryHandle]
-        self._lib.L0_getNumberDevices.restype = c_uint8
-
-        # L1
-        self._lib.L1_Create.restype = LibraryHandle
-        self._lib.L1_Destroy.argtypes = [LibraryHandle]
-
-        self._lib.L1_Login.argtypes = [LibraryHandle, POINTER(c_uint8),
-                                       c_uint16, c_bool]
-        self._lib.L1_Login.restype = c_int8
-
-        self._lib.L1_Logout.argtypes = [LibraryHandle]
-        self._lib.L1_Logout.restype = c_int8
-
-        self._lib.L1_FindKey.argtypes = [LibraryHandle, c_uint32]
-        self._lib.L1_FindKey.restype = c_int8
-
-        self._lib.L1_KeyEdit.argtypes = [LibraryHandle, POINTER(SE3Key),
-                                         c_uint16]
-        self._lib.L1_KeyEdit.restype = c_int8
-
-        self._lib.L1_CryptoSetTimeNow.argtypes = [LibraryHandle]
-        self._lib.L1_CryptoSetTimeNow.restype = c_int8
-
-        self._lib.CryptoInit.argtypes = [LibraryHandle, c_uint16, c_uint16,
-                                         c_uint32, POINTER(c_uint32)]
-        self._lib.CryptoInit.restype = c_int8
-
-        self._lib.CryptoUpdate.argtypes = [LibraryHandle, c_uint32, c_uint16,
-                                           c_uint16, POINTER(c_uint8), c_uint16,
-                                           POINTER(c_uint8), POINTER(c_uint16),
-                                           POINTER(c_uint8)]
-        self._lib.CryptoUpdate.restype = c_int8
-
-        self._lib.DigestSHA256.argtypes = [LibraryHandle, c_uint16,
-                                           POINTER(c_uint8), POINTER(c_uint16),
-                                           POINTER(c_uint8)]
-        self._lib.DigestSHA256.restype = c_int8
-
-        self._lib.DigestHMACSHA256.argtypes = [LibraryHandle, c_uint32,
-                                               c_uint16, POINTER(c_uint8),
-                                               POINTER(c_uint16),
-                                               POINTER(c_uint8)]
-        self._lib.DigestHMACSHA256.restype = c_int8
+        self._lib = self._ffi.dlopen(
+            os.path.join(Wrapper.PYSECUBEPATH, DLL_NAME)
+        )
 
     def _create_libraries(self) -> None:
-        self._l0 = self._lib.L0_create()
+        self._l0 = self._lib.L0_Create()
         self._logger.log(DEBUG, "L0 created")
 
-        device_count = self._lib.L0_getNumberDevices(self._l0)
+        device_count = self._lib.L0_GetNumberDevices(self._l0)
         if device_count < 1:
             raise NoSEcubeDeviceConnected("No SEcube device connected")
         self._logger.log(DEBUG, "SEcube devices connected: %d", device_count)

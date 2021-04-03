@@ -9,7 +9,7 @@ from pysecube import (Wrapper,
 
 # Set logger to INFO, this can be ommitted to produce no logs
 logging.basicConfig()
-logging.getLogger("pysecube").setLevel(logging.INFO)
+logging.getLogger("pysecube").setLevel(logging.DEBUG)
 
 # Use key with ID 10 stored in the SEcube device
 HMAC_KEY_ID = 20
