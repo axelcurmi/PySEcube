@@ -62,6 +62,12 @@ int8_t L1_KeyEdit(L1_handle_t *l1, se3Key* key, uint16_t op);
 
 int8_t L1_CryptoSetTimeNow(L1_handle_t *l1);
 
+int8_t CryptoInit(L1_handle_t *l1, uint16_t algorithm, uint16_t flags,
+    uint32_t keyId, uint32_t* sessionId);
+int8_t CryptoUpdate(L1_handle_t *l1, uint32_t sessionId, uint16_t flags,
+    uint16_t data1Len, uint8_t* data1, uint16_t data2Len, uint8_t* data2,
+    uint16_t* dataOutLen, uint8_t* dataOut);
+
 int8_t DigestSHA256(L1_handle_t *l1, uint16_t dataInLen, uint8_t *dataIn,
     uint16_t *dataOutLen, uint8_t *dataOut);
 int8_t DigestHMACSHA256(L1_handle_t *l1, uint32_t keyId,
@@ -173,47 +179,43 @@ class Wrapper(object):
                     iv: bytes = None) -> Crypter:
         return Crypter(self, algorithm, flags, key_id, iv)
 
-    # def crypto_init(self, algorithm: int, flags: int, key_id: int) -> int:
-    #     session_id = c_uint32()
-    #     res = self._lib.CryptoInit(self._l1, algorithm, flags, key_id,
-    #         byref(session_id))
-    #     if res < 0:
-    #         raise PySEcubeException("Failed to initialise crypto session")
-    #     return session_id.value
+    def crypto_init(self, algorithm: int, flags: int, key_id: int) -> int:
+        session_id = self._ffi.new("uint32_t *")
+        res = self._lib.CryptoInit(self._l1, algorithm, flags, key_id,
+                                   session_id)
+        if res < 0:
+            raise PySEcubeException("Failed to initialise crypto session")
+        return session_id[0]
 
-    # def crypto_update(self, session_id: int, flags: int, data1: bytes = None,
-    #                   data2: bytes = None, max_out_len: int = 0) -> bytes:
-    #     # Data 1
-    #     data1_len = 0
-    #     data1_buffer = None
-    #     if data1 is not None:
-    #         data1_len = len(data1)
-    #         data1_buffer = cast(create_string_buffer(data1, data1_len),
-    #                             POINTER(c_uint8))
+    def crypto_update(self, session_id: int, flags: int, data1: bytes = None,
+                      data2: bytes = None, max_out_len: int = 0) -> bytes:
+        # Data 1
+        data1_len = 0
+        data1_buffer = self._ffi.NULL
+        if data1 is not None:
+            data1_len = len(data1)
+            data1_buffer = self._ffi.from_buffer(data1)
 
-    #     # Data 2
-    #     data2_len = 0
-    #     data2_buffer = None
-    #     if data2 is not None:
-    #         data2_len = len(data2)
-    #         data2_buffer = cast(create_string_buffer(data2, data2_len),
-    #                             POINTER(c_uint8))
+        # Data 2
+        data2_len = 0
+        data2_buffer = self._ffi.NULL
+        if data2 is not None:
+            data2_len = len(data2)
+            data2_buffer = self._ffi.from_buffer(data2)
 
-    #     out_len = None
-    #     out_buffer = None
-    #     if max_out_len > 0:
-    #         out_len = c_uint16()
-    #         out_buffer = cast(create_string_buffer(max_out_len),
-    #                           POINTER(c_uint8))
+        out_len = self._ffi.NULL
+        out_buffer = self._ffi.NULL
+        if max_out_len > 0:
+            out_len = self._ffi.new("uint16_t *")
+            out_buffer = self._ffi.new("uint8_t[]", max_out_len)
 
-    #     res = self._lib.CryptoUpdate(self._l1, session_id, flags, data1_len,
-    #                                  data1_buffer, data2_len, data2_buffer,
-    #                                  None if out_len is None else byref(out_len),
-    #                                  out_buffer)
-    #     if res < 0:
-    #         raise PySEcubeException("Failed to perform crypto update")
-    #     return None if out_len is None else string_at(out_buffer,
-    #                                                   out_len.value)
+        res = self._lib.CryptoUpdate(self._l1, session_id, flags, data1_len,
+                                     data1_buffer, data2_len, data2_buffer,
+                                     out_len, out_buffer)
+        if res < 0:
+            raise PySEcubeException("Failed to perform crypto update")
+        return None if out_len == self._ffi.NULL else \
+            self._ffi.buffer(out_buffer, out_len[0])[:]
 
     def sha256(self, data_in: bytes) -> bytes:
         data_in_buffer = self._ffi.from_buffer(data_in)
