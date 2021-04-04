@@ -7,5 +7,8 @@ setup(
     author="Axel Curmi",
     author_email="axel.curmi.20@um.edu.mt",
     url="https://github.com/Axel-Curmi/MScPySEcube",
-    packages=["pysecube"]
+    packages=["pysecube"],
+    setup_requires=["cffi"],
+    install_requires=["cffi"],
+    cffi_modules=["build_cffi.py:ffi"],
 )
