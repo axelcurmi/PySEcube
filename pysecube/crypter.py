@@ -31,7 +31,8 @@ class Crypter(object):
                                          CRYPTO_UPDATE_SETIV,
                                          data1=iv)
 
-    def __del__(self) -> None:
+    def close(self) -> None:
+        print("888888888888888888888888888")
         if self.__session_id is not None:
             self.__wrapper.crypto_update(self.__session_id, CRYPTO_UPDATE_FINIT)
 

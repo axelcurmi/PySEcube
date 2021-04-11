@@ -108,6 +108,8 @@ def main() -> int:
     except PySEcubeException as e:
         print(e)
         return 1
+    finally:
+        secube_wrapper.destroy()
     return 0
 
 if __name__ == "__main__":

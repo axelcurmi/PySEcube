@@ -15,9 +15,7 @@ from pysecube.secube_exception import (PySEcubeException,
                                        NoSEcubeDeviceConnected,
                                        InvalidPinException,
                                        SE3KeyInvalidSizeException)
-from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
-                             DLL_NAME,
-                             MAX_LENGTH_L1KEY_DATA,
+from pysecube.common import (MAX_LENGTH_L1KEY_DATA,
                              MAX_LENGTH_PIN,
                              MAX_LENGTH_L1KEY_NAME,
                              ACCESS_MODE_USER,
@@ -29,7 +27,6 @@ from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
                              KEY_EDIT_OP_DELETE)
 
 class Wrapper(object):
-    PYSECUBEPATH = os.environ[ENV_NAME_SHARED_LIB_PATH]
     LOGGER_NAME = "pysecube.wrapper"
 
     def __init__(self, pin: Union[List[int], bytes] = None):
@@ -39,13 +36,18 @@ class Wrapper(object):
         self._l1 = None
 
         self.logged_in = False
+        self.crypto_sessions = []
 
         self._create_libraries()
         
         if pin is not None:
             self.login(pin, ACCESS_MODE_USER)
 
-    def __del__(self) -> None:
+    def destroy(self) -> None:
+        # Close all crypto sessions prior to logging out
+        for session in self.crypto_sessions:
+            session.close()
+
         if self.logged_in:
             self.logout()
 
@@ -120,7 +122,10 @@ class Wrapper(object):
 
     def get_crypter(self, algorithm: int, flags: int, key_id: int,
                     iv: bytes = None) -> Crypter:
-        return Crypter(self, algorithm, flags, key_id, iv)
+        session = Crypter(self, algorithm, flags, key_id, iv)
+        self.crypto_sessions.append(session)
+
+        return session
 
     def crypto_init(self, algorithm: int, flags: int, key_id: int) -> int:
         session_id = ffi.new("uint32_t *")

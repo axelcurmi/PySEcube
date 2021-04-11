@@ -1,3 +1,5 @@
+import os
+
 from cffi import FFI
 
 CDEF = """\
@@ -43,29 +45,39 @@ SRC = """\
 #include "L1_wrapper.h"
 """
 
+# Paths
+SECUBE_CLONE = os.environ["SECUBE_CLONE"]
+SECUBE_SOURCE = os.path.join(SECUBE_CLONE, "SEcubeSources")
+L0_SECUBE_SOURCE = os.path.join(SECUBE_SOURCE, "L0")
+L0_BASE_SECUBE_SOURCE = os.path.join(L0_SECUBE_SOURCE, "L0Base")
+
+L1_SECUBE_SOURCE = os.path.join(SECUBE_SOURCE, "L1")
+L1_BASE_SECUBE_SOURCE = os.path.join(L1_SECUBE_SOURCE, "L1Base")
+L1_CRYPTO_LIBS_SECUBE_SOURCE = os.path.join(L1_SECUBE_SOURCE, "CryptoLibraries")
+
 ffi = FFI()
 ffi.cdef(CDEF)
 
-ffi.set_source( module_name="_secube",
-                source=SRC,
-                sources=[
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L0\\L0Base\\L0_base.cpp",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L0\\L0_commodities.cpp",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L0\\L0_communication.cpp",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L0\\L0_provision.cpp",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L0\\L0.cpp",
+ffi.set_source(
+    module_name="_secube",
+    source=SRC,
+    sources=[
+        os.path.join(L0_BASE_SECUBE_SOURCE, "L0_base.cpp"),
+        os.path.join(L0_SECUBE_SOURCE, "L0_commodities.cpp"),
+        os.path.join(L0_SECUBE_SOURCE, "L0_communication.cpp"),
+        os.path.join(L0_SECUBE_SOURCE, "L0_provision.cpp"),
+        os.path.join(L0_SECUBE_SOURCE, "L0.cpp"),
 
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L1\\CryptoLibraries\\aes256.cpp",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L1\\CryptoLibraries\\sha256.c",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L1\\CryptoLibraries\\pbkdf2.c",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L1\\L1Base\\L1_base.cpp",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L1\\L1_login_logout.cpp",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L1\\L1_security.cpp",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\SEcubeSources\\L1\\L1.cpp",
+        os.path.join(L1_CRYPTO_LIBS_SECUBE_SOURCE, "aes256.cpp"),
+        os.path.join(L1_CRYPTO_LIBS_SECUBE_SOURCE, "sha256.c"),
+        os.path.join(L1_CRYPTO_LIBS_SECUBE_SOURCE, "pbkdf2.c"),
+        os.path.join(L1_BASE_SECUBE_SOURCE, "L1_base.cpp"),
+        os.path.join(L1_SECUBE_SOURCE, "L1_login_logout.cpp"),
+        os.path.join(L1_SECUBE_SOURCE, "L1_security.cpp"),
+        os.path.join(L1_SECUBE_SOURCE, "L1.cpp"),
 
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\L0_wrapper.cpp",
-                    "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper\\L1_wrapper.cpp"
-                ],
-                include_dirs=[
-                   "C:\\Users\\axelc\\Workspace\\MSc-SEcubeWrapper"
-                ])
+        os.path.join(SECUBE_CLONE, "L0_wrapper.cpp"),
+        os.path.join(SECUBE_CLONE, "L1_wrapper.cpp")
+    ],
+    include_dirs=[SECUBE_CLONE]
+)
