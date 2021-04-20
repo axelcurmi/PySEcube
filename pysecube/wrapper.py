@@ -41,16 +41,6 @@ from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
 
 LibraryHandle = POINTER(c_byte)
 
-class SE3Key(Structure):
-    _fields_ = [
-        ("id", c_uint32),
-        ("validity", c_uint32),
-        ("data_size", c_uint16),
-        ("name_size", c_uint16),
-        ("data", POINTER(c_uint8)),
-        ("name", c_char * MAX_LENGTH_L1KEY_NAME)
-    ]
-
 class Wrapper(object):
     PYSECUBEPATH = os.environ[ENV_NAME_SHARED_LIB_PATH]
     LOGGER_NAME = "pysecube.wrapper"
@@ -80,7 +70,7 @@ class Wrapper(object):
             self._logger.log(DEBUG, "L1 destroyed")
 
         if self._l0 is not None:
-            self._lib.L0_destroy(self._l0)
+            self._lib.L0_Destroy(self._l0)
             self._l0 = None
             self._logger.log(DEBUG, "L0 destroyed")
 
@@ -113,8 +103,14 @@ class Wrapper(object):
         return self._lib.L1_FindKey(self._l1, id) == 1
 
     def delete_key(self, id: int) -> None:
-        key = SE3Key(id = id)
-        res = self._lib.L1_KeyEdit(self._l1, byref(key), KEY_EDIT_OP_DELETE)
+        res = self._lib.L1_KeyEdit(self._l1,
+                                   id,      # id
+                                   0,       # validity
+                                   0,       # data size
+                                   0,       # name size
+                                   None,    # data buffer
+                                   None,    # name buffer
+                                   KEY_EDIT_OP_DELETE)
         if res < 0:
             raise PySEcubeException("Failed to delete key")
         self._logger.log(DEBUG, "Key with ID:%d deleted successfully", id)
@@ -132,17 +128,17 @@ class Wrapper(object):
 
         data_buffer = cast(create_string_buffer(data, data_size),
                            POINTER(c_uint8))
+        name_buffer = cast(create_string_buffer(name, name_size),
+                           POINTER(c_uint8))
 
-        key = SE3Key(
-            id = id,
-            validity = int(time.time()) + validity,
-            data_size = data_size,
-            name_size = name_size + 1,
-            data = data_buffer,
-            name = name
-        )
-
-        res = self._lib.L1_KeyEdit(self._l1, byref(key), KEY_EDIT_OP_INSERT)
+        res = self._lib.L1_KeyEdit(self._l1,
+                                   id,
+                                   int(time.time()) + validity,
+                                   data_size,
+                                   name_size + 1,
+                                   data_buffer,
+                                   name_buffer,
+                                   KEY_EDIT_OP_INSERT)
         if res < 0:
             raise PySEcubeException("Failed to add key")
         self._logger.log(DEBUG, "Key with ID:%d added successfully", id)
@@ -238,11 +234,11 @@ class Wrapper(object):
 
     def _setup_boilerplate(self) -> None:
         # L0
-        self._lib.L0_create.restype = LibraryHandle
-        self._lib.L0_destroy.argtypes = [LibraryHandle]
+        self._lib.L0_Create.restype = LibraryHandle
+        self._lib.L0_Destroy.argtypes = [LibraryHandle]
 
-        self._lib.L0_getNumberDevices.argtypes = [LibraryHandle]
-        self._lib.L0_getNumberDevices.restype = c_uint8
+        self._lib.L0_GetNumberDevices.argtypes = [LibraryHandle]
+        self._lib.L0_GetNumberDevices.restype = c_uint8
 
         # L1
         self._lib.L1_Create.restype = LibraryHandle
@@ -258,8 +254,9 @@ class Wrapper(object):
         self._lib.L1_FindKey.argtypes = [LibraryHandle, c_uint32]
         self._lib.L1_FindKey.restype = c_int8
 
-        self._lib.L1_KeyEdit.argtypes = [LibraryHandle, POINTER(SE3Key),
-                                         c_uint16]
+        self._lib.L1_KeyEdit.argtypes = [LibraryHandle, c_uint32, c_uint32,
+                                         c_uint16, c_uint16, POINTER(c_uint8),
+                                         POINTER(c_uint8), c_uint16]
         self._lib.L1_KeyEdit.restype = c_int8
 
         self._lib.L1_CryptoSetTimeNow.argtypes = [LibraryHandle]
@@ -287,10 +284,10 @@ class Wrapper(object):
         self._lib.DigestHMACSHA256.restype = c_int8
 
     def _create_libraries(self) -> None:
-        self._l0 = self._lib.L0_create()
+        self._l0 = self._lib.L0_Create()
         self._logger.log(DEBUG, "L0 created")
 
-        device_count = self._lib.L0_getNumberDevices(self._l0)
+        device_count = self._lib.L0_GetNumberDevices(self._l0)
         if device_count < 1:
             raise NoSEcubeDeviceConnected("No SEcube device connected")
         self._logger.log(DEBUG, "SEcube devices connected: %d", device_count)
