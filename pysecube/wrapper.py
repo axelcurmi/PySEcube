@@ -45,7 +45,8 @@ class Wrapper(object):
     PYSECUBEPATH = os.environ[ENV_NAME_SHARED_LIB_PATH]
     LOGGER_NAME = "pysecube.wrapper"
 
-    def __init__(self, pin: Union[List[int], bytes] = None):
+    def __init__(self, pin: Union[List[int], bytes] = None,
+                 lib_path: str = None):
         self._logger = getLogger(Wrapper.LOGGER_NAME)
         self._lib = None
         self._l0 = None
@@ -54,7 +55,7 @@ class Wrapper(object):
         self.logged_in = False
         self.crypto_sessions = []
 
-        self._load_library()
+        self._load_library(lib_path)
         self._setup_boilerplate()
         self._create_libraries()
         
@@ -237,10 +238,11 @@ class Wrapper(object):
         return string_at(data_out_buffer, data_out_len.value)
 
     # internal
-    def _load_library(self) -> None:
-        dll_path = os.path.join(Wrapper.PYSECUBEPATH, DLL_NAME)
-        self._logger.log(DEBUG, "Loading library from %s", dll_path)
-        self._lib = CDLL(dll_path, winmode=0x00000008)
+    def _load_library(self, lib_path: str = None) -> None:
+        if lib_path is None:
+            lib_path = os.path.join(Wrapper.PYSECUBEPATH, DLL_NAME)
+        self._logger.log(DEBUG, "Loading library from %s", lib_path)
+        self._lib = CDLL(lib_path, winmode=0x00000008)
 
     def _setup_boilerplate(self) -> None:
         # L0
