@@ -52,6 +52,7 @@ class Wrapper(object):
         self._l1 = None
 
         self.logged_in = False
+        self.crypto_sessions = []
 
         self._load_library()
         self._setup_boilerplate()
@@ -60,7 +61,14 @@ class Wrapper(object):
         if pin is not None:
             self.login(pin, ACCESS_MODE_USER)
 
-    def __del__(self) -> None:
+    def destroy(self) -> None:
+        # Close all crypto sessions prior to logging out
+        for session in self.crypto_sessions:
+            try:
+                session.close()
+            except PySEcubeException:
+                pass
+        
         if self.logged_in:
             self.logout()
 
@@ -151,7 +159,9 @@ class Wrapper(object):
 
     def get_crypter(self, algorithm: int, flags: int, key_id: int,
                     iv: bytes = None) -> Crypter:
-        return Crypter(self, algorithm, flags, key_id, iv)
+        session = Crypter(self, algorithm, flags, key_id, iv)
+        self.crypto_sessions.append(session)
+        return session
 
     def crypto_init(self, algorithm: int, flags: int, key_id: int) -> int:
         session_id = c_uint32()
