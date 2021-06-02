@@ -49,6 +49,16 @@ def test_encrypt_decrypt(plaintext, encrypter, decrypter):
     print(f"[2] Output text: {dec_out.decode()}")
     assert(dec_out == plaintext)
 
+def test_large_encrypt_decrypt(encrypter, decrypter):
+    print(f"Encrypter: {type(encrypter)}")
+    print(f"Decrypter: {type(decrypter)}")
+
+    plaintext = b"A" * 64000
+
+    enc_out = encrypter.update(plaintext)
+    dec_out = decrypter.update(enc_out)
+    assert(dec_out == plaintext)
+
 def main() -> int:
     print("PySEcube Sample")
 
@@ -111,6 +121,7 @@ def main() -> int:
             ALGORITHM_AES, MODE_DECRYPT | FEEDBACK_CTR, AES_KEY_ID, iv=CTR_NONCE
         )
         test_encrypt_decrypt(plaintext, encrypter, decrypter)
+        test_large_encrypt_decrypt(encrypter, decrypter)
 
         # 2. Encrypt w. OpenSSL and decrypt w. SEcube
         print("> ENC. OpenSSL - DEC. SEcube <")
@@ -119,6 +130,7 @@ def main() -> int:
             ALGORITHM_AES, MODE_DECRYPT | FEEDBACK_CTR, AES_KEY_ID, iv=CTR_NONCE
         )
         test_encrypt_decrypt(plaintext, encrypter, decrypter)
+        test_large_encrypt_decrypt(encrypter, decrypter)
         
         # 3. Encrypt w. SEcube and decrypt w. OpenSSL
         print("> ENC. SEcube - DEC. OpenSSL <")
@@ -127,6 +139,7 @@ def main() -> int:
         )
         decrypter = openssl_engine.decryptor()
         test_encrypt_decrypt(plaintext, encrypter, decrypter)
+        test_large_encrypt_decrypt(encrypter, decrypter)
 
         # Remove the test key
         secube_wrapper.delete_key(AES_KEY_ID)
