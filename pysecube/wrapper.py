@@ -1,6 +1,6 @@
-import math
 import os
 import time
+import threading
 
 from ctypes import (CDLL,
                     c_byte,
@@ -15,11 +15,8 @@ from ctypes import (CDLL,
                     byref,
                     create_string_buffer,
                     string_at)
-from logging import (getLogger,
-                     DEBUG,
-                     INFO)
-from typing import (List,
-                    Union)
+from logging import (getLogger, DEBUG, INFO)
+from typing import (List, Union)
 
 from pysecube.crypter import Crypter
 from pysecube.secube_exception import (PySEcubeException,
@@ -51,6 +48,7 @@ class Wrapper(object):
         self._lib = None
         self._l0 = None
         self._l1 = None
+        self._lock = threading.Lock()
 
         self.logged_in = False
         self.crypto_sessions = []
@@ -197,10 +195,16 @@ class Wrapper(object):
             out_buffer = cast(create_string_buffer(max_out_len),
                               POINTER(c_uint8))
 
-        res = self._lib.CryptoUpdate(self._l1, session_id, flags, data1_len,
-                                     data1_buffer, data2_len, data2_buffer,
-                                     None if out_len is None else byref(out_len),
-                                     out_buffer)
+        self._lock.acquire()
+        try:
+            res = self._lib.CryptoUpdate(self._l1, session_id, flags, data1_len,
+                                         data1_buffer, data2_len, data2_buffer,
+                                         None if out_len is None \
+                                             else byref(out_len),
+                                         out_buffer)
+        finally:
+            self._lock.release()
+
         if res < 0:
             raise PySEcubeException("Failed to perform crypto update")
         return None if out_len is None else string_at(out_buffer,
@@ -216,9 +220,13 @@ class Wrapper(object):
             create_string_buffer(DIGEST_SIZE_TABLE[ALGORITHM_SHA256]),
             POINTER(c_uint8))
 
-        if self._lib.DigestSHA256(self._l1, data_in_len, data_in_buffer,
-                                  byref(data_out_len), data_out_buffer) < 0:
-            raise PySEcubeException("Failed to create SHA256 digest")
+        self._lock.acquire()
+        try:
+            if self._lib.DigestSHA256(self._l1, data_in_len, data_in_buffer,
+                                    byref(data_out_len), data_out_buffer) < 0:
+                raise PySEcubeException("Failed to create SHA256 digest")
+        finally:
+            self._lock.release()
         return string_at(data_out_buffer, data_out_len.value)
 
     def compute_hmac(self, key_id: int, data_in: bytes) -> bytes:
@@ -231,10 +239,14 @@ class Wrapper(object):
             create_string_buffer(DIGEST_SIZE_TABLE[ALGORITHM_HMACSHA256]),
             POINTER(c_uint8))
 
-        if self._lib.DigestHMACSHA256(self._l1, key_id, data_in_len,
-                                  data_in_buffer, byref(data_out_len),
-                                  data_out_buffer) < 0:
-            raise PySEcubeException("Failed to create SHA256 HMAC")
+        self._lock.acquire()
+        try:
+            if self._lib.DigestHMACSHA256(self._l1, key_id, data_in_len,
+                                    data_in_buffer, byref(data_out_len),
+                                    data_out_buffer) < 0:
+                raise PySEcubeException("Failed to create SHA256 HMAC")
+        finally:
+            self._lock.release()
         return string_at(data_out_buffer, data_out_len.value)
 
     # internal

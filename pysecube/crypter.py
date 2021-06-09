@@ -1,5 +1,4 @@
-from logging import (getLogger,
-                     DEBUG)
+from logging import (getLogger, DEBUG)
 
 from pysecube.common import (CRYPTO_UPDATE_SETIV,
                              CRYPTO_UPDATE_FINIT, MODE_ENCRYPT)
