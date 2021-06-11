@@ -101,23 +101,37 @@ class Wrapper(object):
 
     def logout(self) -> None:
         res = self._lib.L1_Logout(self._l1)
+
         self.logged_in = False
         if res < 0:
             raise PySEcubeException("Failed during logout")
         self._logger.log(INFO, "Logged out")
 
     def key_exists(self, id: int) -> bool:
-        return self._lib.L1_FindKey(self._l1, id) == 1
+        key_exists = False
+
+        self._lock.acquire()
+        try:
+            key_exists = self._lib.L1_FindKey(self._l1, id) == 1
+        finally:
+            self._lock.release()
+
+        return key_exists
 
     def delete_key(self, id: int) -> None:
-        res = self._lib.L1_KeyEdit(self._l1,
-                                   id,      # id
-                                   0,       # validity
-                                   0,       # data size
-                                   0,       # name size
-                                   None,    # data buffer
-                                   None,    # name buffer
-                                   KEY_EDIT_OP_DELETE)
+        self._lock.acquire()
+        try:
+            res = self._lib.L1_KeyEdit(self._l1,
+                                    id,      # id
+                                    0,       # validity
+                                    0,       # data size
+                                    0,       # name size
+                                    None,    # data buffer
+                                    None,    # name buffer
+                                    KEY_EDIT_OP_DELETE)
+        finally:
+            self._lock.release()
+
         if res < 0:
             raise PySEcubeException("Failed to delete key")
         self._logger.log(DEBUG, "Key with ID:%d deleted successfully", id)
@@ -138,20 +152,30 @@ class Wrapper(object):
         name_buffer = cast(create_string_buffer(name, name_size),
                            POINTER(c_uint8))
 
-        res = self._lib.L1_KeyEdit(self._l1,
-                                   id,
-                                   int(time.time()) + validity,
-                                   data_size,
-                                   name_size + 1,
-                                   data_buffer,
-                                   name_buffer,
-                                   KEY_EDIT_OP_INSERT)
+        self._lock.acquire()
+        try:
+            res = self._lib.L1_KeyEdit(self._l1,
+                                    id,
+                                    int(time.time()) + validity,
+                                    data_size,
+                                    name_size + 1,
+                                    data_buffer,
+                                    name_buffer,
+                                    KEY_EDIT_OP_INSERT)
+        finally:
+            self._lock.release()
+
         if res < 0:
             raise PySEcubeException("Failed to add key")
         self._logger.log(DEBUG, "Key with ID:%d added successfully", id)
 
     def crypto_set_time_now(self) -> None:
-        res = self._lib.L1_CryptoSetTimeNow(self._l1)
+        self._lock.acquire()
+        try:
+            res = self._lib.L1_CryptoSetTimeNow(self._l1)
+        finally:
+            self._lock.release()
+
         if res < 0:
             raise PySEcubeException("Failed to set crypto time")
         self._logger.log(DEBUG, "Crypto time set to now")
@@ -164,8 +188,14 @@ class Wrapper(object):
 
     def crypto_init(self, algorithm: int, flags: int, key_id: int) -> int:
         session_id = c_uint32()
-        res = self._lib.CryptoInit(self._l1, algorithm, flags, key_id,
-            byref(session_id))
+        
+        self._lock.acquire()
+        try:
+            res = self._lib.CryptoInit(self._l1, algorithm, flags, key_id,
+                byref(session_id))
+        finally:
+            self._lock.release()
+
         if res < 0:
             raise PySEcubeException("Failed to initialise crypto session")
         return session_id.value
