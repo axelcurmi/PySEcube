@@ -1,14 +1,10 @@
-import math
-import os
 import time
+import threading
 
 from _secube import ffi, lib
 
-from logging import (getLogger,
-                     DEBUG,
-                     INFO)
-from typing import (List,
-                    Union)
+from logging import (getLogger, DEBUG, INFO)
+from typing import (List, Union)
 
 from pysecube.crypter import Crypter
 from pysecube.secube_exception import (PySEcubeException,
@@ -19,7 +15,6 @@ from pysecube.common import (MAX_LENGTH_L1KEY_DATA,
                              MAX_LENGTH_PIN,
                              MAX_LENGTH_L1KEY_NAME,
                              ACCESS_MODE_USER,
-                             BLOCK_SIZE_TABLE,
                              DIGEST_SIZE_TABLE,
                              ALGORITHM_SHA256,
                              ALGORITHM_HMACSHA256,
@@ -34,6 +29,7 @@ class Wrapper(object):
 
         self._l0 = None
         self._l1 = None
+        self._lock = threading.Lock()
 
         self.logged_in = False
         self.crypto_sessions = []
@@ -86,11 +82,20 @@ class Wrapper(object):
         self._logger.log(INFO, "Logged out")
 
     def key_exists(self, id: int) -> bool:
-        return lib.L1_FindKey(self._l1, id) == 1
+        self._lock.acquire()
+        try:
+            key_exists = lib.L1_FindKey(self._l1, id) == 1
+        finally:
+            self._lock.release()
+        return key_exists
 
     def delete_key(self, id: int) -> None:
-        res = lib.L1_KeyEdit(self._l1, id, 0, 0, 0, ffi.NULL, ffi.NULL,
-                                   KEY_EDIT_OP_DELETE)
+        self._lock.acquire()
+        try:
+            res = lib.L1_KeyEdit(self._l1, id, 0, 0, 0, ffi.NULL, ffi.NULL,
+                                 KEY_EDIT_OP_DELETE)
+        finally:
+            self._lock.release()
         if res < 0:
             raise PySEcubeException("Failed to delete key")
         self._logger.log(DEBUG, "Key with ID:%d deleted successfully", id)
@@ -107,9 +112,13 @@ class Wrapper(object):
                                              MAX_LENGTH_L1KEY_DATA)
         validity = int(time.time()) + 3600
 
-        res = lib.L1_KeyEdit(self._l1, id, validity, data_size, name_size,
-            ffi.from_buffer(data), ffi.from_buffer(name),
-            KEY_EDIT_OP_INSERT)
+        self._lock.acquire()
+        try:
+            res = lib.L1_KeyEdit(self._l1, id, validity, data_size, name_size,
+                                 ffi.from_buffer(data), ffi.from_buffer(name),
+                                 KEY_EDIT_OP_INSERT)
+        finally:
+            self._lock.release()
         if res < 0:
             raise PySEcubeException("Failed to add key")
         self._logger.log(DEBUG, "Key with ID:%d added successfully", id)
@@ -129,8 +138,13 @@ class Wrapper(object):
 
     def crypto_init(self, algorithm: int, flags: int, key_id: int) -> int:
         session_id = ffi.new("uint32_t *")
-        res = lib.CryptoInit(self._l1, algorithm, flags, key_id,
-                                   session_id)
+
+        self._lock.acquire()
+        try:
+            res = lib.CryptoInit(self._l1, algorithm, flags, key_id,
+                                 session_id)
+        finally:
+            self._lock.release()
         if res < 0:
             raise PySEcubeException("Failed to initialise crypto session")
         return session_id[0]
@@ -157,9 +171,14 @@ class Wrapper(object):
             out_len = ffi.new("uint16_t *")
             out_buffer = ffi.new("uint8_t[]", max_out_len)
 
-        res = lib.CryptoUpdate(self._l1, session_id, flags, data1_len,
-                                     data1_buffer, data2_len, data2_buffer,
-                                     out_len, out_buffer)
+        self._lock.acquire()
+        try:
+            res = lib.CryptoUpdate(self._l1, session_id, flags, data1_len,
+                                   data1_buffer, data2_len, data2_buffer,
+                                   out_len, out_buffer)
+        finally:
+            self._lock.release()
+
         if res < 0:
             raise PySEcubeException("Failed to perform crypto update")
         return None if out_len == ffi.NULL else \
@@ -173,9 +192,13 @@ class Wrapper(object):
             "uint8_t[]", DIGEST_SIZE_TABLE[ALGORITHM_SHA256]
         )
 
-        if lib.DigestSHA256(self._l1, len(data_in), data_in_buffer,
-                                  data_out_len, data_out_buffer) < 0:
-            raise PySEcubeException("Failed to create SHA256 digest")
+        self._lock.acquire()
+        try:
+            if lib.DigestSHA256(self._l1, len(data_in), data_in_buffer,
+                                data_out_len, data_out_buffer) < 0:
+                raise PySEcubeException("Failed to create SHA256 digest")
+        finally:
+            self._lock.release()
         return ffi.buffer(data_out_buffer, data_out_len[0])[:]
 
     def compute_hmac(self, key_id: int, data_in: bytes) -> bytes:
@@ -186,10 +209,14 @@ class Wrapper(object):
             "uint8_t[]", DIGEST_SIZE_TABLE[ALGORITHM_HMACSHA256]
         )
 
-        if lib.DigestHMACSHA256(self._l1, key_id, len(data_in),
-                                  data_in_buffer, data_out_len,
-                                  data_out_buffer) < 0:
-            raise PySEcubeException("Failed to create SHA256 HMAC")
+        self._lock.acquire()
+        try:
+            if lib.DigestHMACSHA256(self._l1, key_id, len(data_in),
+                                    data_in_buffer, data_out_len,
+                                    data_out_buffer) < 0:
+                raise PySEcubeException("Failed to create SHA256 HMAC")
+        finally:
+            self._lock.release()
         return ffi.buffer(data_out_buffer, data_out_len[0])[:]
 
     def _create_libraries(self) -> None:

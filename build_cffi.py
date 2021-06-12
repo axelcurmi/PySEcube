@@ -81,3 +81,6 @@ ffi.set_source(
     ],
     include_dirs=[SECUBE_CLONE]
 )
+
+if __name__ == "__main__":
+    ffi.compile(verbose=True)

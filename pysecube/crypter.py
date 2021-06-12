@@ -32,7 +32,6 @@ class Crypter(object):
                                          data1=iv)
 
     def close(self) -> None:
-        print("888888888888888888888888888")
         if self.__session_id is not None:
             self.__wrapper.crypto_update(self.__session_id, CRYPTO_UPDATE_FINIT)
 
