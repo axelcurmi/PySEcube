@@ -49,4 +49,3 @@ class Crypter(object):
         return self.__wrapper.crypto_update(self.__session_id, self.__flags,
                                             data2=data_in,
                                             max_out_len=max_out_len)
-

@@ -1,5 +1,6 @@
 from pysecube.wrapper import Wrapper
 from pysecube.crypter import Crypter
+from pysecube.hmacsha256 import HMACSHA256
 
 from pysecube.secube_exception import (PySEcubeException,
                                        NoSEcubeDeviceConnected,
@@ -21,6 +22,7 @@ __author__ = "Axel Curmi <axel.curmi.20@um.edu.mt>"
 __all__ = [
     "Wrapper",
     "Crypter",
+    "HMACSHA256",
     "PySEcubeException",
     "NoSEcubeDeviceConnected",
     "InvalidPinException",
