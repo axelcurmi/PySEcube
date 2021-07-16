@@ -5,7 +5,8 @@ from hmac import HMAC
 import logging
 
 from pysecube import (Wrapper,
-                      PySEcubeException)
+                      PySEcubeException,
+                      HMACSHA256)
 
 # Set logger to INFO, this can be ommitted to produce no logs
 logging.basicConfig()
@@ -55,7 +56,7 @@ def main() -> int:
         secube_wrapper.crypto_set_time_now()
 
         # Plaintext to Encrypt as bytes
-        plaintext = b"PySEcube"
+        plaintext = b"PySEcubePySEcubePySEcubePySEcube"
 
         # Digest of some bytes (in this case the plaintext bytes):
         dig_out = secube_wrapper.sha256(plaintext)
@@ -66,7 +67,7 @@ def main() -> int:
         #   Digest output length: 32
         #   Digest out in HEX 0x1271397c7edec16bdb5600913cac23898fb48da6100471008f23b7e8e2deb817
 
-        hmac_out = secube_wrapper.compute_hmac(HMAC_KEY_ID, plaintext)
+        hmac_out = HMACSHA256(secube_wrapper, HMAC_KEY_ID, plaintext).digest()
         print(f"HMAC output length: {len(hmac_out)}")
         print(f"HMAC out in HEX 0x{hmac_out.hex()}")
         # stdout >
@@ -104,6 +105,8 @@ def main() -> int:
               "\033[91mNO\033[0m")
         # stdout > 
         #   Same HMAC? YES
+
+        secube_wrapper.destroy()
 
     except PySEcubeException as e:
         print(e)

@@ -72,12 +72,20 @@ class Wrapper(object):
             self.logout()
 
         if self._l1 is not None:
-            self._lib.L1_Destroy(self._l1)
+            self._lock.acquire()
+            try:
+                self._lib.L1_Destroy(self._l1)
+            finally:
+                self._lock.release()
             self._l1 = None
             self._logger.log(DEBUG, "L1 destroyed")
 
         if self._l0 is not None:
-            self._lib.L0_Destroy(self._l0)
+            self._lock.acquire()
+            try:
+                self._lib.L0_Destroy(self._l0)
+            finally:
+                self._lock.release()
             self._l0 = None
             self._logger.log(DEBUG, "L0 destroyed")
 
@@ -100,7 +108,11 @@ class Wrapper(object):
         self._logger.log(INFO, "Logged in")
 
     def logout(self) -> None:
-        res = self._lib.L1_Logout(self._l1)
+        self._lock.acquire()
+        try:
+            res = self._lib.L1_Logout(self._l1)
+        finally:
+            self._lock.release()
 
         self.logged_in = False
         if res < 0:
