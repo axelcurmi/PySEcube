@@ -271,26 +271,6 @@ class Wrapper(object):
             self._lock.release()
         return string_at(data_out_buffer, data_out_len.value)
 
-    def compute_hmac(self, key_id: int, data_in: bytes) -> bytes:
-        data_in_len = len(data_in)
-        data_in_buffer = cast(create_string_buffer(data_in, data_in_len),
-                              POINTER(c_uint8))
-
-        data_out_len = c_uint16()
-        data_out_buffer = cast(
-            create_string_buffer(DIGEST_SIZE_TABLE[ALGORITHM_HMACSHA256]),
-            POINTER(c_uint8))
-
-        self._lock.acquire()
-        try:
-            if self._lib.DigestHMACSHA256(self._l1, key_id, data_in_len,
-                                    data_in_buffer, byref(data_out_len),
-                                    data_out_buffer) < 0:
-                raise PySEcubeException("Failed to create SHA256 HMAC")
-        finally:
-            self._lock.release()
-        return string_at(data_out_buffer, data_out_len.value)
-
     # internal
     def _load_library(self, lib_path: str = None) -> None:
         if lib_path is None:
@@ -342,12 +322,6 @@ class Wrapper(object):
                                            POINTER(c_uint8), POINTER(c_uint16),
                                            POINTER(c_uint8)]
         self._lib.DigestSHA256.restype = c_int8
-
-        self._lib.DigestHMACSHA256.argtypes = [LibraryHandle, c_uint32,
-                                               c_uint16, POINTER(c_uint8),
-                                               POINTER(c_uint16),
-                                               POINTER(c_uint8)]
-        self._lib.DigestHMACSHA256.restype = c_int8
 
     def _create_libraries(self) -> None:
         self._l0 = self._lib.L0_Create()
