@@ -4,12 +4,12 @@ import threading
 
 from ctypes import (CDLL,
                     c_byte,
-                    c_bool, c_char,
+                    c_bool,
                     c_int8,
                     c_uint8,
                     c_uint16,
                     c_uint32,
-                    Structure,
+                    c_double,
                     POINTER,
                     cast,
                     byref,
@@ -29,10 +29,8 @@ from pysecube.common import (ENV_NAME_SHARED_LIB_PATH,
                              MAX_LENGTH_PIN,
                              MAX_LENGTH_L1KEY_NAME,
                              ACCESS_MODE_USER,
-                             BLOCK_SIZE_TABLE,
                              DIGEST_SIZE_TABLE,
                              ALGORITHM_SHA256,
-                             ALGORITHM_HMACSHA256,
                              KEY_EDIT_OP_INSERT,
                              KEY_EDIT_OP_DELETE)
 
@@ -88,6 +86,45 @@ class Wrapper(object):
                 self._lock.release()
             self._l0 = None
             self._logger.log(DEBUG, "L0 destroyed")
+
+    def get_metrics(self) -> dict:
+
+        find_key_count = c_uint32()
+        find_key_time = c_double()
+
+        key_edit_count = c_uint32()
+        key_edit_time = c_double()
+
+        crypto_init_count = c_uint32()
+        crypto_init_time = c_double()
+
+        crypto_update_count = c_uint32()
+        crypto_update_time = c_double()
+
+        self._lock.acquire()
+        try:
+            self._lib.L1_GetMetrics(self._l1,
+                                    byref(find_key_count),
+                                    byref(find_key_time),
+                                    byref(key_edit_count),
+                                    byref(key_edit_time),
+                                    byref(crypto_init_count),
+                                    byref(crypto_init_time),
+                                    byref(crypto_update_count),
+                                    byref(crypto_update_time))
+        finally:
+            self._lock.release()
+        
+        return {
+            "find_key_count": find_key_count.value,
+            "find_key_time": find_key_time.value,
+            "key_edit_count": key_edit_count.value,
+            "key_edit_time": key_edit_time.value,
+            "crypto_init_count": crypto_init_count.value,
+            "crypto_init_time": crypto_init_time.value,
+            "crypto_update_count": crypto_update_count.value,
+            "crypto_update_time": crypto_update_time.value
+        }
 
     def login(self, pin: Union[List[int], bytes], access: int,
               force: bool = True) -> None:
@@ -289,6 +326,12 @@ class Wrapper(object):
         # L1
         self._lib.L1_Create.restype = LibraryHandle
         self._lib.L1_Destroy.argtypes = [LibraryHandle]
+
+        self._lib.L1_GetMetrics.argtypes = [LibraryHandle,
+                                            POINTER(c_uint32), POINTER(c_double),
+                                            POINTER(c_uint32), POINTER(c_double),
+                                            POINTER(c_uint32), POINTER(c_double),
+                                            POINTER(c_uint32), POINTER(c_double)]
 
         self._lib.L1_Login.argtypes = [LibraryHandle, POINTER(c_uint8),
                                        c_uint16, c_bool]
